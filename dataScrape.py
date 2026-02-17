@@ -6,7 +6,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, 'genshin_tracker.db')
 
 def update_character_database():
-    # 1. THE NUCLEAR OPTION: Physically delete the locked file
     if os.path.exists(DB_PATH):
         try:
             os.remove(DB_PATH)
@@ -18,9 +17,11 @@ def update_character_database():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
+    # --- NEW: Added IconURL TEXT to the table ---
     cursor.execute('''
     CREATE TABLE Characters (
         CharacterID INTEGER PRIMARY KEY AUTOINCREMENT,
+        IconURL TEXT,
         Name TEXT UNIQUE,
         Element TEXT,
         ReleaseVersion TEXT
@@ -50,7 +51,6 @@ def update_character_database():
 
     api_data.sort(key=lambda x: x.get('version', '9.9'))
 
-    # 2. THE CLEANER EXCLUSION LIST
     standard_characters = [
         "Aloy", "Aether", "Lumine", "Diluc", "Jean", 
         "Qiqi", "Keqing", "Mona", "Tighnari", "Dehya"
@@ -58,7 +58,7 @@ def update_character_database():
 
     for char in api_data:
         name = char.get('name')
-        element = char.get('element')
+        element = char.get('elementText') 
         version = char.get('version')
         rarity = str(char.get('rarity'))
         
@@ -69,12 +69,23 @@ def update_character_database():
         if "Traveler" in name or name in standard_characters:
             continue
 
-        cursor.execute('''
-            INSERT INTO Characters (Name, Element, ReleaseVersion) 
-            VALUES (?, ?, ?)
-        ''', (name, element, version))
+        # --- NEW: Fetch the individual character's full data to get the images ---
+        detail_url = "https://genshin-db-api.vercel.app/api/v5/characters"
+        try:
+            # We use 'params' so requests automatically handles spaces in names like "Hu Tao"
+            detail_res = requests.get(detail_url, params={"query": name, "dumpResult": "true"}).json()
+            
+            # In dumpResult, the actual character data is tucked inside the 'result' key
+            icon_url = detail_res.get('result', {}).get('images', {}).get('icon', '')
+        except Exception as e:
+            print(f"Failed to fetch image for {name}: {e}")
+            icon_url = ""
 
-    # 3. FETCHING FROM YOUR GITHUB
+        cursor.execute('''
+            INSERT INTO Characters (IconURL, Name, Element, ReleaseVersion) 
+            VALUES (?, ?, ?, ?)
+        ''', (icon_url, name, element, version))
+
     banner_url = "https://raw.githubusercontent.com/Ehttri/genshin_banner_api/refs/heads/main/banners.json"
     
     try:
@@ -100,8 +111,7 @@ def update_character_database():
 
     conn.commit()
     conn.close()
-    print("Database built! Only Limited 5-star characters and their banners were added.")
+    print("Database built! Character avatars successfully added.")
 
-# THIS IS THE EXECUTION BLOCK THAT WAS MISSING
 if __name__ == "__main__":
     update_character_database()
