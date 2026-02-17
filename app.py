@@ -22,7 +22,7 @@ query = """
         c.Name, 
         c.Element, 
         COUNT(b.BannerID) as TotalBanners,
-        GROUP_CONCAT(b.StartDate, ', ') as RerunDates
+        GROUP_CONCAT(b.StartDate, ' || ') as RerunDates
     FROM Characters c
     LEFT JOIN BannerHistory b ON c.CharacterID = b.CharacterID
     GROUP BY c.CharacterID
@@ -34,13 +34,13 @@ st.subheader("Current Roster & Banner History")
 # Display the merged data
 st.dataframe(
     df, 
-    use_container_width=True, 
+    use_container_width=False, 
     hide_index=True,
     column_config={
         "CharacterID": st.column_config.NumberColumn("ID", format="%d"),
         "Name": "Character Name",
         "Element": "Vision",
         "TotalBanners": st.column_config.NumberColumn("Total Appearances"),
-        "RerunDates": "Dates Available"
+        "RerunDates": "Dates Available (YYYY-MM-DD)"
     }
 )
